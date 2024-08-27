@@ -13,8 +13,14 @@
 use crate::{AttachCallback, DetachCallback, GenericPhidget, Phidget, Result, ReturnCode};
 use phidget_sys::{
     self as ffi, PhidgetHandle, PhidgetTemperatureSensorHandle as TemperatureSensorHandle,
+    PhidgetTemperatureSensor_ThermocoupleType as ThermocoupleType,
 };
 use std::{mem, os::raw::c_void, ptr};
+
+pub use ffi::PhidgetTemperatureSensor_ThermocoupleType_THERMOCOUPLE_TYPE_E as THERMOCOUPLE_TYPE_E;
+pub use ffi::PhidgetTemperatureSensor_ThermocoupleType_THERMOCOUPLE_TYPE_J as THERMOCOUPLE_TYPE_J;
+pub use ffi::PhidgetTemperatureSensor_ThermocoupleType_THERMOCOUPLE_TYPE_K as THERMOCOUPLE_TYPE_K;
+pub use ffi::PhidgetTemperatureSensor_ThermocoupleType_THERMOCOUPLE_TYPE_T as THERMOCOUPLE_TYPE_T;
 
 /// The function type for the safe Rust temperature change callback.
 pub type TemperatureCallback = dyn Fn(&TemperatureSensor, f64) + Send + 'static;
@@ -107,6 +113,22 @@ impl TemperatureSensor {
         let ctx = crate::phidget::set_on_detach_handler(self, cb)?;
         self.detach_cb = Some(ctx);
         Ok(())
+    }
+
+    /// Set the thermocouple type (J = 1, K = 2, E = 3, T = 4).
+    pub fn set_thermocouple_type<F>(&mut self, ty: ThermocoupleType) -> Result<()> {
+        ReturnCode::result(unsafe {
+            ffi::PhidgetTemperatureSensor_setThermocoupleType(self.chan, ty)
+        })
+    }
+
+    /// Get the thermocouple type (J = 1, K = 2, E = 3, T = 4).
+    pub fn get_thermocouple_type<F>(&mut self) -> Result<ThermocoupleType> {
+        let mut thermocouple_type = 0;
+        ReturnCode::result(unsafe {
+            ffi::PhidgetTemperatureSensor_getThermocoupleType(self.chan, &mut thermocouple_type)
+        })?;
+        Ok(thermocouple_type)
     }
 }
 
