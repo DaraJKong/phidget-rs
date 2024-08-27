@@ -130,6 +130,24 @@ impl TemperatureSensor {
         })?;
         Ok(thermocouple_type)
     }
+
+    /// Get the minimum temperature.
+    pub fn get_min_temperature<F>(&mut self) -> Result<f64> {
+        let mut min_temperature = 0.0;
+        ReturnCode::result(unsafe {
+            ffi::PhidgetTemperatureSensor_getMinTemperature(self.chan, &mut min_temperature)
+        })?;
+        Ok(min_temperature)
+    }
+
+    /// Get the maximum temperature.
+    pub fn get_max_temperature<F>(&mut self) -> Result<f64> {
+        let mut max_temperature = 0.0;
+        ReturnCode::result(unsafe {
+            ffi::PhidgetTemperatureSensor_getMaxTemperature(self.chan, &mut max_temperature)
+        })?;
+        Ok(max_temperature)
+    }
 }
 
 impl Phidget for TemperatureSensor {
