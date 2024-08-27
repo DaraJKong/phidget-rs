@@ -116,14 +116,14 @@ impl TemperatureSensor {
     }
 
     /// Set the thermocouple type (J = 1, K = 2, E = 3, T = 4).
-    pub fn set_thermocouple_type<F>(&mut self, ty: ThermocoupleType) -> Result<()> {
+    pub fn set_thermocouple_type(&mut self, ty: ThermocoupleType) -> Result<()> {
         ReturnCode::result(unsafe {
             ffi::PhidgetTemperatureSensor_setThermocoupleType(self.chan, ty)
         })
     }
 
     /// Get the thermocouple type (J = 1, K = 2, E = 3, T = 4).
-    pub fn get_thermocouple_type<F>(&mut self) -> Result<ThermocoupleType> {
+    pub fn get_thermocouple_type(&mut self) -> Result<ThermocoupleType> {
         let mut thermocouple_type = 0;
         ReturnCode::result(unsafe {
             ffi::PhidgetTemperatureSensor_getThermocoupleType(self.chan, &mut thermocouple_type)
@@ -132,7 +132,7 @@ impl TemperatureSensor {
     }
 
     /// Get the minimum temperature.
-    pub fn get_min_temperature<F>(&mut self) -> Result<f64> {
+    pub fn get_min_temperature(&mut self) -> Result<f64> {
         let mut min_temperature = 0.0;
         ReturnCode::result(unsafe {
             ffi::PhidgetTemperatureSensor_getMinTemperature(self.chan, &mut min_temperature)
@@ -141,7 +141,7 @@ impl TemperatureSensor {
     }
 
     /// Get the maximum temperature.
-    pub fn get_max_temperature<F>(&mut self) -> Result<f64> {
+    pub fn get_max_temperature(&mut self) -> Result<f64> {
         let mut max_temperature = 0.0;
         ReturnCode::result(unsafe {
             ffi::PhidgetTemperatureSensor_getMaxTemperature(self.chan, &mut max_temperature)
