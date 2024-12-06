@@ -1,6 +1,6 @@
 // phidget-rs/examples/temperature.rs
 //
-// Copyright (c) 2023, Frank Pagliughi
+// Copyright (c) 2023-2024, Frank Pagliughi
 //
 // This file is an example application for the 'phidget-rs' library.
 //
@@ -22,6 +22,11 @@ const TIMEOUT: Duration = phidget::TIMEOUT_DEFAULT;
 
 // The package version is used as the app version
 const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+// Convert Celsius to Fahrenheit
+fn c_to_f(t: f64) -> f64 {
+    t * 9.0 / 5.0 + 32.0
+}
 
 // --------------------------------------------------------------------------
 
@@ -48,6 +53,11 @@ fn main() -> anyhow::Result<()> {
             arg!(-p --port [port] "Use a specific port on a VINT hub directly")
                 .value_parser(value_parser!(i32)),
         )
+        .arg(
+            arg!(-i --interval [interval] "Sets the interval (period) for data collection, in ms")
+                .default_value("1000")
+                .value_parser(value_parser!(u32)),
+        )
         .get_matches();
 
     println!("Opening Phidget temperature sensor...");
@@ -71,14 +81,26 @@ fn main() -> anyhow::Result<()> {
     let port = sensor.hub_port()?;
     println!("Opened on hub port: {}", port);
 
-    let t = sensor.temperature()?;
-    println!("Temperature: {}", t);
+    // Set the acquisition interval (sampling period)
+    if let Some(&interval) = opts.get_one::<u32>("interval") {
+        let dur = Duration::from_millis(interval as u64);
+        if let Err(err) = sensor.set_data_interval(dur) {
+            eprintln!("Error setting interval: {}", err);
+        }
+    }
 
+    println!("\nReading temperature. Hit ^C to exit.");
+
+    // Read a single value...
+    let t = sensor.temperature()?;
+    println!("  {:.1}°C,  {:.1}°F", t, c_to_f(t));
+
+    // ...and/or set a callback handler
     sensor.set_on_temperature_change_handler(|_, t: f64| {
-        println!("Temperature: {}", t);
+        println!("  {:.1}°C,  {:.1}°F", t, c_to_f(t));
     })?;
 
-    // ^C handler wakes up the main thread
+    // ^C handler wakes up the main thread to exit
     ctrlc::set_handler({
         let thr = thread::current();
         move || {

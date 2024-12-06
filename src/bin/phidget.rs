@@ -1,3 +1,17 @@
+// phidget-rs/src/bin/phidget.rs
+//
+// Copyright (c) 2023, Frank Pagliughi
+//
+// This file is part of the 'phidget-rs' library.
+//
+// Licensed under the MIT license:
+//   <LICENSE or http://opensource.org/licenses/MIT>
+// This file may not be copied, modified, or distributed except according
+// to those terms.
+//
+
+//! Phidget command-line utility application.
+
 use phidget::{
     devices::{HumiditySensor, TemperatureSensor},
     Phidget,
@@ -62,7 +76,7 @@ fn main() -> anyhow::Result<()> {
     })?;
 
     temp_sensor.set_on_temperature_change_handler(|_s: &TemperatureSensor, temperature: f64| {
-        println!("Temerature: {}", temperature);
+        println!("Temperature: {}", temperature);
     })?;
 
     // ^C handler wakes up the main thread

@@ -35,7 +35,7 @@
 //! The input bit can be selected by choosing the serial number of a device
 //! and channel number for the input.
 //!
-//! You can also use a port on a hub as a voltage intput. In that case the
+//! You can also use a port on a hub as a voltage input. In that case the
 //! voltage is measured between the white line (signal) and black line
 //! (ground). Select the hub (-h) option and the port number, like:
 //!
@@ -89,6 +89,11 @@ fn main() -> anyhow::Result<()> {
                 .default_value("1.0")
                 .value_parser(value_parser!(f64)),
         )
+        .arg(
+            arg!(-i --interval [interval] "Sets the interval (period) for data collection, in ms")
+                .default_value("500")
+                .value_parser(value_parser!(u32)),
+        )
         .get_matches();
 
     let use_hub = opts.get_flag("hub");
@@ -120,6 +125,14 @@ fn main() -> anyhow::Result<()> {
     if use_hub {
         let port = vin.hub_port()?;
         println!("Opened on hub port: {}", port);
+    }
+
+    // Set the acquisition interval (sampling period)
+    if let Some(&interval) = opts.get_one::<u32>("interval") {
+        let dur = Duration::from_millis(interval as u64);
+        if let Err(err) = vin.set_data_interval(dur) {
+            eprintln!("Error setting interval: {}", err);
+        }
     }
 
     let v = vin.voltage()?;

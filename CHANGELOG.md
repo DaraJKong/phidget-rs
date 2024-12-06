@@ -1,5 +1,13 @@
 # Change Log for phidget-rs library crate
 
+## [v0.2.0](https://github.com/fpagliughi/phidget-rs/compare/v0.1.4..v0.2.0)  - 2024-10-21
+
+- Digital In & Out state consistently represented with a u8
+- [#11](https://github.com/fpagliughi/phidget-rs/pull/1) Examples in the documentation.
+- Minor updates and output formatting to the example apps
+- Created a config file for the Rust 'typos' utility, and used it to run a spell check.
+
+
 ## [v0.1.4](https://github.com/fpagliughi/phidget-rs/compare/v0.1.3..v0.1.4)  - 2024-05-30
 
 - [#8](https://github.com/fpagliughi/phidget-rs/pull/8) Add voltage ratio input
@@ -15,9 +23,9 @@
 ## [v0.1.2](https://github.com/fpagliughi/phidget-rs/compare/v0.1.1..v0.1.2)  - 2024-03-10
 
 - Bumped MSRV to 1.73
-- Seperated voltage-io to voltage-input and ouput modules.
-- Seperated digital-io to digital-input and ouput modules.
-- Completion of available functions from in digital-input and ouput binding.
+- Separated voltage-io to voltage-input and output modules.
+- Separated digital-io to digital-input and output modules.
+- Completion of available functions from in digital-input and output binding.
 - Moved devices to specific module to keep the root directory clean.
 - Added support for optional `PHIDGET_ROOT` to point to the directory of the phidgets22 library.
 
