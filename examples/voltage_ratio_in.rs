@@ -1,6 +1,7 @@
-// phidget-rs/examples/voltage_in.rs
+// phidget-rs/examples/voltage_ratio_in.rs
 //
-// Copyright (c) 2023, Frank Pagliughi
+// Copyright (c) 2023-2025, Frank Pagliughi
+// Copyright (c) 2024 Jorge Guerra and Riley Hernandez
 //
 // This file is an example application for the 'phidget-rs' library.
 //
@@ -10,41 +11,29 @@
 // to those terms.
 //
 
-//! Rust Phidget example application to read voltage input values.
+//! Rust Phidget example application to read voltage ratio input values.
 //!
 //! A number of sensors have a simple, linear, formula to get a value in
 //! the form:
 //!
 //! ```text
-//! value = (voltage - offset) * gain
+//! value = (voltage_ratio - offset) * gain
 //! ```
-//! This example app allows you to enter the gain and offset to see the value
-//! in the units of the sensor. For example, the [VCP4114.0 Clip-On Current
-//! Transducer](https://www.phidgets.com/?&prodid=1184) has the formula:
+//! On a real application the offset and gain can be determined via a calibration procedure
+//! (https://www.phidgets.com/docs/Calibrating_Load_Cells)
+//! For this example, assume an offset of 2.5 and a gain (scaling factor) of 16 resulting
+//! in a weight in grams. To see the output in grams, run this:
 //!
 //! ```text
-//! DC Amps = (V - 2.5) * 16.0
+//! $ voltage_in_ratio -o 2.5 -g 16.0
 //! ```
 //!
-//! So, to see the output in amps, run this:
-//!
-//! ```text
-//! $ voltage_in -o 2.5 -g 16.0
-//! ```
-//!
-//! The input bit can be selected by choosing the serial number of a device
+//! The input channel can be selected by choosing the serial number of a device
 //! and channel number for the input.
 //!
-//! You can also use a port on a hub as a voltage input. In that case the
-//! voltage is measured between the white line (signal) and black line
-//! (ground). Select the hub (-h) option and the port number, like:
-//!
-//! ```text
-//! $ voltage_in -h -p 5
-//! ```
 
 use clap::{arg, value_parser, ArgAction};
-use phidget::{devices::VoltageInput, Phidget};
+use phidget::{devices::VoltageRatioInput, Phidget};
 use std::{thread, time::Duration};
 
 // The package version is used as the app version
@@ -53,10 +42,10 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 // --------------------------------------------------------------------------
 
 fn main() -> anyhow::Result<()> {
-    let opts = clap::Command::new("voltage_in")
+    let opts = clap::Command::new("voltage_ratio_in")
         .version(VERSION)
         .author(env!("CARGO_PKG_AUTHORS"))
-        .about("Phidget Voltage (Analog) Input Example")
+        .about("Phidget Voltage Ratio Input Example")
         .disable_help_flag(true)
         .arg(
             arg!(--help "Print help information")
@@ -77,26 +66,21 @@ fn main() -> anyhow::Result<()> {
         )
         .arg(arg!(-h --hub "Use a hub VINT input port directly").action(ArgAction::SetTrue))
         .arg(
-            arg!(-o --offset [offset] "The offset for reading  [val = gain * (volts - offset)]")
+            arg!(-o --offset [offset] "The offset for reading  [val = gain * (volt_ratio - offset)]")
                 .default_value("0.0")
                 .value_parser(value_parser!(f64)),
         )
         .arg(
-            arg!(-g --gain [gain] "The gain for the reading [val = gain * (volts - offset)]")
+            arg!(-g --gain [gain] "The gain for the reading [val = gain * (volts_ratio - offset)]")
                 .default_value("1.0")
                 .value_parser(value_parser!(f64)),
-        )
-        .arg(
-            arg!(-i --interval [interval] "Sets the interval (period) for data collection, in ms")
-                .default_value("500")
-                .value_parser(value_parser!(u32)),
         )
         .get_matches();
 
     let use_hub = opts.get_flag("hub");
 
-    println!("Opening Phidget voltage input device...");
-    let mut vin = VoltageInput::new();
+    println!("Opening Phidget bridge input device...");
+    let mut vin = VoltageRatioInput::new();
 
     // Whether we should use a hub port directly as the input,
     // and if so, which one?
@@ -105,7 +89,7 @@ fn main() -> anyhow::Result<()> {
         vin.set_hub_port(port)?;
     }
 
-    // Some other device selection filters...
+    // Some other device selection filters..
     if let Some(&num) = opts.get_one::<i32>("serial") {
         vin.set_serial_number(num)?;
     }
@@ -124,19 +108,19 @@ fn main() -> anyhow::Result<()> {
         println!("Opened on hub port: {}", port);
     }
 
-    // Set the acquisition interval (sampling period)
-    if let Some(&interval) = opts.get_one::<u32>("interval") {
-        let dur = Duration::from_millis(interval as u64);
-        if let Err(err) = vin.set_data_interval(dur) {
-            eprintln!("Error setting interval: {}", err);
-        }
-    }
+    // Set to the fastest supported sampling rate.
+    let min_interval = vin.min_data_interval().unwrap();
+    vin.set_data_interval(min_interval)?;
 
-    let v = vin.voltage()?;
+    println!("This device features a 2-3 second calibration procedure once first opened...");
+    thread::sleep(Duration::from_millis(2000));
+    println!("Calibration procedure complete");
+
+    let v = vin.voltage_ratio()?;
     let val = (v - offset) * gain;
     println!("{:.4}", val);
 
-    vin.set_on_voltage_change_handler(move |_, v: f64| {
+    vin.set_on_voltage_ratio_change_handler(move |_, v| {
         let val = (v - offset) * gain;
         println!("{:.4}", val);
     })?;

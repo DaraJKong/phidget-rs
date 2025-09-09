@@ -1,6 +1,6 @@
 // phidget-rs/src/errors.rs
 //
-// Copyright (c) 2023, Frank Pagliughi
+// Copyright (c) 2023-2025, Frank Pagliughi
 //
 // This file is part of the 'phidget-rs' library.
 //
@@ -23,10 +23,8 @@
 
 use phidget_sys as ffi;
 use std::{
-    ffi::CStr,
-    fmt,
-    os::raw::{c_char, c_uint},
-    ptr,
+    ffi::{c_char, c_uint, CStr},
+    fmt, ptr,
 };
 
 /////////////////////////////////////////////////////////////////////////////
@@ -38,6 +36,7 @@ use std::{
 /// This type is a Rust std::error::Error.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(u32)]
+#[non_exhaustive]
 #[allow(missing_docs)]
 pub enum ReturnCode {
     Ok = 0,
@@ -87,6 +86,12 @@ pub enum ReturnCode {
     Failsafe = 59,
     UnknownValHigh = 60,
     UnknownValLow = 61,
+    BadPower = 62,
+    PowerCycle = 63,
+    HallSensor = 64,
+    BadCurrent = 65,
+    BadConnection = 66,
+    Nack = 67,
 }
 
 impl ReturnCode {
@@ -177,6 +182,12 @@ impl From<c_uint> for ReturnCode {
             59 => Failsafe,
             60 => UnknownValHigh,
             61 => UnknownValLow,
+            62 => BadPower,
+            63 => PowerCycle,
+            64 => HallSensor,
+            65 => BadCurrent,
+            66 => BadConnection,
+            67 => Nack,
             _ => Unexpected,
         }
     }
@@ -184,6 +195,12 @@ impl From<c_uint> for ReturnCode {
 
 impl From<std::str::Utf8Error> for ReturnCode {
     fn from(_: std::str::Utf8Error) -> Self {
+        ReturnCode::Invalid
+    }
+}
+
+impl From<std::ffi::NulError> for ReturnCode {
+    fn from(_: std::ffi::NulError) -> Self {
         ReturnCode::Invalid
     }
 }

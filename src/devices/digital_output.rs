@@ -10,12 +10,18 @@
 // to those terms.
 //
 
-use crate::{AttachCallback, DetachCallback, GenericPhidget, Phidget, Result, ReturnCode};
+use crate::{Phidget, Result, ReturnCode};
 use phidget_sys::{self as ffi, PhidgetDigitalOutputHandle, PhidgetHandle};
 use std::{
-    os::raw::{c_int, c_void},
-    ptr,
+    ffi::{c_int, c_void},
+    mem, ptr,
 };
+
+/// The function type for the safe Rust temperature sensor attach callback.
+pub type AttachCallback = dyn Fn(&mut DigitalOutput) + Send + 'static;
+
+/// The function type for the safe Rust temperature sensor detach callback.
+pub type DetachCallback = dyn Fn(&mut DigitalOutput) + Send + 'static;
 
 /// Phidget digital output
 pub struct DigitalOutput {
@@ -35,6 +41,31 @@ impl DigitalOutput {
             ffi::PhidgetDigitalOutput_create(&mut chan);
         }
         Self::from(chan)
+    }
+
+    // Low-level, unsafe callback for device attach events
+    unsafe extern "C" fn on_attach(phid: PhidgetHandle, ctx: *mut c_void) {
+        if !ctx.is_null() {
+            let cb: &mut Box<AttachCallback> = &mut *(ctx as *mut _);
+            let mut sensor = Self::from(phid as PhidgetDigitalOutputHandle);
+            cb(&mut sensor);
+            mem::forget(sensor);
+        }
+    }
+
+    // Low-level, unsafe callback for device detach events
+    unsafe extern "C" fn on_detach(phid: PhidgetHandle, ctx: *mut c_void) {
+        if !ctx.is_null() {
+            let cb: &mut Box<DetachCallback> = &mut *(ctx as *mut _);
+            let mut sensor = Self::from(phid as PhidgetDigitalOutputHandle);
+            cb(&mut sensor);
+            mem::forget(sensor);
+        }
+    }
+
+    /// Get a reference to the underlying sensor handle
+    pub fn as_channel(&self) -> &PhidgetDigitalOutputHandle {
+        &self.chan
     }
 
     /// Set enable failsafe
@@ -59,12 +90,6 @@ impl DigitalOutput {
         })?;
         Ok(())
     }
-
-    // /// Set  duty cycle async
-    // pub async fn set_duty_cycle_async(&self, duty_cycle: f64) -> Result<()> {
-    //     _ = duty_cycle;
-    //     unimplemented!();
-    // }
 
     /// Get duty cycle
     pub fn duty_cycle(&self) -> Result<f64> {
@@ -111,7 +136,7 @@ impl DigitalOutput {
         Ok(value)
     }
 
-    /// Set frequency
+    /// Set frequency for PWM output
     pub fn set_frequency(&self, frequency: f64) -> Result<()> {
         ReturnCode::result(unsafe {
             ffi::PhidgetDigitalOutput_setFrequency(self.chan, frequency)
@@ -119,7 +144,7 @@ impl DigitalOutput {
         Ok(())
     }
 
-    /// Get frequency
+    /// Get frequency for PWM output
     pub fn frequency(&self) -> Result<f64> {
         let mut value = 0.0;
         ReturnCode::result(unsafe {
@@ -153,12 +178,6 @@ impl DigitalOutput {
         })?;
         Ok(())
     }
-
-    // /// Set led current limit async
-    // pub async fn set_led_current_limit_async(&self, led_current_limit: f64) -> Result<()> {
-    //     _ = led_current_limit;
-    //     unimplemented!()
-    // }
 
     /// Get led current limit
     pub fn led_current_limit(&self) -> Result<f64> {
@@ -202,12 +221,6 @@ impl DigitalOutput {
         ReturnCode::result(unsafe { ffi::PhidgetDigitalOutput_setState(self.chan, state as c_int) })
     }
 
-    // /// Set state async
-    // pub async fn set_state_async(&self, state: u8) -> Result<()> {
-    //     _ = state;
-    //     unimplemented!();
-    // }
-
     /// Get the state of the digital output channel
     pub fn state(&self) -> Result<u8> {
         let mut value = 0;
@@ -218,9 +231,15 @@ impl DigitalOutput {
     /// Sets a handler to receive attach callbacks
     pub fn set_on_attach_handler<F>(&mut self, cb: F) -> Result<()>
     where
-        F: Fn(&GenericPhidget) + Send + 'static,
+        F: Fn(&mut DigitalOutput) + Send + 'static,
     {
-        let ctx = crate::phidget::set_on_attach_handler(self, cb)?;
+        // 1st box is fat ptr, 2nd is regular pointer.
+        let cb: Box<Box<AttachCallback>> = Box::new(Box::new(cb));
+        let ctx = Box::into_raw(cb) as *mut c_void;
+
+        ReturnCode::result(unsafe {
+            ffi::Phidget_setOnAttachHandler(self.as_mut_handle(), Some(Self::on_attach), ctx)
+        })?;
         self.attach_cb = Some(ctx);
         Ok(())
     }
@@ -228,16 +247,25 @@ impl DigitalOutput {
     /// Sets a handler to receive detach callbacks
     pub fn set_on_detach_handler<F>(&mut self, cb: F) -> Result<()>
     where
-        F: Fn(&GenericPhidget) + Send + 'static,
+        F: Fn(&mut DigitalOutput) + Send + 'static,
     {
-        let ctx = crate::phidget::set_on_detach_handler(self, cb)?;
+        // 1st box is fat ptr, 2nd is regular pointer.
+        let cb: Box<Box<DetachCallback>> = Box::new(Box::new(cb));
+        let ctx = Box::into_raw(cb) as *mut c_void;
+
+        ReturnCode::result(unsafe {
+            ffi::Phidget_setOnDetachHandler(self.as_mut_handle(), Some(Self::on_detach), ctx)
+        })?;
         self.detach_cb = Some(ctx);
         Ok(())
     }
 }
 
 impl Phidget for DigitalOutput {
-    fn as_handle(&mut self) -> PhidgetHandle {
+    fn as_mut_handle(&mut self) -> PhidgetHandle {
+        self.chan as PhidgetHandle
+    }
+    fn as_handle(&self) -> PhidgetHandle {
         self.chan as PhidgetHandle
     }
 }

@@ -1,4 +1,4 @@
-// phidget-rs/src/humidity_sensor.rs
+// phidget-rs/src/pressure_sensor.rs
 //
 // Copyright (c) 2023-2025, Frank Pagliughi
 //
@@ -12,24 +12,26 @@
 
 use crate::{Phidget, Result, ReturnCode};
 use phidget_sys::{
-    self as ffi, PhidgetHandle, PhidgetHumiditySensorHandle as HumiditySensorHandle,
+    self as ffi, PhidgetHandle, PhidgetPressureSensorHandle as PressureSensorHandle,
 };
 use std::{ffi::c_void, mem, ptr};
 
-/// The function type for the safe Rust temperature sensor attach callback.
-pub type AttachCallback = dyn Fn(&mut HumiditySensor) + Send + 'static;
+/////////////////////////////////////////////////////////////////////////////
 
-/// The function type for the safe Rust temperature sensor detach callback.
-pub type DetachCallback = dyn Fn(&mut HumiditySensor) + Send + 'static;
+/// The function type for the safe Rust pressure sensor attach callback.
+pub type AttachCallback = dyn Fn(&mut PressureSensor) + Send + 'static;
 
-/// The function signature for the safe Rust humidity change callback.
-pub type HumidityChangeCallback = dyn Fn(&HumiditySensor, f64) + Send + 'static;
+/// The function type for the safe Rust pressure sensor detach callback.
+pub type DetachCallback = dyn Fn(&mut PressureSensor) + Send + 'static;
 
-/// Phidget humidity sensor
-pub struct HumiditySensor {
+/// The function type for the safe Rust pressure change callback.
+pub type PressureChangeCallback = dyn Fn(&PressureSensor, f64) + Send + 'static;
+
+/// Phidget pressure sensor
+pub struct PressureSensor {
     // Handle to the sensor for the phidget22 library
-    chan: HumiditySensorHandle,
-    // Double-boxed HumidityChangeCallback, if registered
+    chan: PressureSensorHandle,
+    // Double-boxed PressureChangeCallback, if registered
     cb: Option<*mut c_void>,
     // Double-boxed attach callback, if registered
     attach_cb: Option<*mut c_void>,
@@ -37,12 +39,12 @@ pub struct HumiditySensor {
     detach_cb: Option<*mut c_void>,
 }
 
-impl HumiditySensor {
-    /// Create a new humidity sensor.
+impl PressureSensor {
+    /// Create a new pressure sensor.
     pub fn new() -> Self {
-        let mut chan: HumiditySensorHandle = ptr::null_mut();
+        let mut chan: PressureSensorHandle = ptr::null_mut();
         unsafe {
-            ffi::PhidgetHumiditySensor_create(&mut chan);
+            ffi::PhidgetPressureSensor_create(&mut chan);
         }
         Self::from(chan)
     }
@@ -51,7 +53,7 @@ impl HumiditySensor {
     unsafe extern "C" fn on_attach(phid: PhidgetHandle, ctx: *mut c_void) {
         if !ctx.is_null() {
             let cb: &mut Box<AttachCallback> = &mut *(ctx as *mut _);
-            let mut sensor = Self::from(phid as HumiditySensorHandle);
+            let mut sensor = Self::from(phid as PressureSensorHandle);
             cb(&mut sensor);
             mem::forget(sensor);
         }
@@ -61,121 +63,121 @@ impl HumiditySensor {
     unsafe extern "C" fn on_detach(phid: PhidgetHandle, ctx: *mut c_void) {
         if !ctx.is_null() {
             let cb: &mut Box<DetachCallback> = &mut *(ctx as *mut _);
-            let mut sensor = Self::from(phid as HumiditySensorHandle);
+            let mut sensor = Self::from(phid as PressureSensorHandle);
             cb(&mut sensor);
             mem::forget(sensor);
         }
     }
 
-    // Low-level, unsafe, callback for humidity change events.
+    // Low-level, unsafe, callback for pressure change events.
     // The context is a double-boxed pointer the the safe Rust callback.
-    unsafe extern "C" fn on_humidity_change(
-        chan: HumiditySensorHandle,
+    unsafe extern "C" fn on_pressure_change(
+        chan: PressureSensorHandle,
         ctx: *mut c_void,
-        humidity: f64,
+        pressure: f64,
     ) {
         if !ctx.is_null() {
-            let cb: &mut Box<HumidityChangeCallback> = &mut *(ctx as *mut _);
+            let cb: &mut Box<PressureChangeCallback> = &mut *(ctx as *mut _);
             let sensor = Self::from(chan);
-            cb(&sensor, humidity);
+            cb(&sensor, pressure);
             mem::forget(sensor);
         }
     }
 
     /// Get a reference to the underlying sensor handle
-    pub fn as_channel(&self) -> &HumiditySensorHandle {
+    pub fn as_channel(&self) -> &PressureSensorHandle {
         &self.chan
     }
 
-    /// Read the current humidity value.
-    pub fn humidity(&self) -> Result<f64> {
-        let mut humidity = 0.0;
+    /// Read the current pressure
+    pub fn pressure(&self) -> Result<f64> {
+        let mut pressure = 0.0;
         ReturnCode::result(unsafe {
-            ffi::PhidgetHumiditySensor_getHumidity(self.chan, &mut humidity)
+            ffi::PhidgetPressureSensor_getPressure(self.chan, &mut pressure)
         })?;
-        Ok(humidity)
+        Ok(pressure)
     }
 
-    /// Gets the minimum value the `HumidityChange` event will report.
-    pub fn min_humidity(&self) -> Result<f64> {
-        let mut humidity = 0.0;
+    /// Gets the minimum value the `PressureChange` event will report.
+    pub fn min_pressure(&self) -> Result<f64> {
+        let mut pressure = 0.0;
         ReturnCode::result(unsafe {
-            ffi::PhidgetHumiditySensor_getMinHumidity(self.chan, &mut humidity)
+            ffi::PhidgetPressureSensor_getMinPressure(self.chan, &mut pressure)
         })?;
-        Ok(humidity)
+        Ok(pressure)
     }
 
-    /// Gets the maximum value the `HumidityChange` event will report.
-    pub fn max_humidity(&self) -> Result<f64> {
-        let mut humidity = 0.0;
+    /// Gets the maximum value the `PressureChange` event will report.
+    pub fn max_pressure(&self) -> Result<f64> {
+        let mut pressure = 0.0;
         ReturnCode::result(unsafe {
-            ffi::PhidgetHumiditySensor_getMaxHumidity(self.chan, &mut humidity)
+            ffi::PhidgetPressureSensor_getMaxPressure(self.chan, &mut pressure)
         })?;
-        Ok(humidity)
+        Ok(pressure)
     }
 
-    /// Gets the current value of the `HumidityChangeTrigger`.
+    /// Gets the current value of the `PressureChangeTrigger`.
     ///
-    /// The channel will not issue a HumidityChange event until the
-    /// humidity value has changed by the amount specified by the
-    /// HumidityChangeTrigger.
-    pub fn humidity_change_trigger(&self) -> Result<f64> {
-        let mut humidity = 0.0;
+    /// The channel will not issue a PressureChange event until the
+    /// pressure value has changed by the amount specified by the
+    /// PressureChangeTrigger.
+    pub fn pressure_change_trigger(&self) -> Result<f64> {
+        let mut pressure = 0.0;
         ReturnCode::result(unsafe {
-            ffi::PhidgetHumiditySensor_getHumidityChangeTrigger(self.chan, &mut humidity)
+            ffi::PhidgetPressureSensor_getPressureChangeTrigger(self.chan, &mut pressure)
         })?;
-        Ok(humidity)
+        Ok(pressure)
     }
 
-    /// Sets the `HumidityChangeTrigger`.
+    /// Sets the `PressureChangeTrigger`.
     ///
-    /// The channel will not issue a HumidityChange event until the
-    /// humidity value has changed by the amount specified by the
-    /// HumidityChangeTrigger.
-    /// Gets the maximum value the `HumidityChange` event will report.
+    /// The channel will not issue a PressureChange event until the
+    /// pressure value has changed by the amount specified by the
+    /// PressureChangeTrigger.
+    /// Gets the maximum value the `PressureChange` event will report.
     ///
     /// Setting this to 0 will result in the channel firing events every
     /// DataInterval. This is useful for applications that implement their
     /// own data filtering.
-    pub fn set_humidity_change_trigger(&self, trigger: f64) -> Result<()> {
+    pub fn set_pressure_change_trigger(&self, trigger: f64) -> Result<()> {
         ReturnCode::result(unsafe {
-            ffi::PhidgetHumiditySensor_setHumidityChangeTrigger(self.chan, trigger)
+            ffi::PhidgetPressureSensor_setPressureChangeTrigger(self.chan, trigger)
         })?;
         Ok(())
     }
 
-    /// Gets the minimum value of the `HumidityChangeTrigger`.
-    pub fn min_humidity_change_trigger(&self) -> Result<f64> {
+    /// Gets the minimum value of the `PressureChangeTrigger`.
+    pub fn min_pressure_change_trigger(&self) -> Result<f64> {
         let mut trigger = 0.0;
         ReturnCode::result(unsafe {
-            ffi::PhidgetHumiditySensor_getMinHumidityChangeTrigger(self.chan, &mut trigger)
+            ffi::PhidgetPressureSensor_getMinPressureChangeTrigger(self.chan, &mut trigger)
         })?;
         Ok(trigger)
     }
 
-    /// Gets the maximum value of the `HumidityChangeTrigger`.
-    pub fn max_humidity_change_trigger(&self) -> Result<f64> {
+    /// Gets the maximum value of the `PressureChangeTrigger`.
+    pub fn max_pressure_change_trigger(&self) -> Result<f64> {
         let mut trigger = 0.0;
         ReturnCode::result(unsafe {
-            ffi::PhidgetHumiditySensor_getMaxHumidityChangeTrigger(self.chan, &mut trigger)
+            ffi::PhidgetPressureSensor_getMaxPressureChangeTrigger(self.chan, &mut trigger)
         })?;
         Ok(trigger)
     }
 
-    /// Sets a handler to receive humitity change callbacks.
-    pub fn set_on_humidity_change_handler<F>(&mut self, cb: F) -> Result<()>
+    /// Set a handler to receive pressure change callbacks.
+    pub fn set_on_pressure_change_handler<F>(&mut self, cb: F) -> Result<()>
     where
-        F: Fn(&HumiditySensor, f64) + Send + 'static,
+        F: Fn(&PressureSensor, f64) + Send + 'static,
     {
         // 1st box is fat ptr, 2nd is regular pointer.
-        let cb: Box<Box<HumidityChangeCallback>> = Box::new(Box::new(cb));
+        let cb: Box<Box<PressureChangeCallback>> = Box::new(Box::new(cb));
         let ctx = Box::into_raw(cb) as *mut c_void;
         self.cb = Some(ctx);
 
         ReturnCode::result(unsafe {
-            ffi::PhidgetHumiditySensor_setOnHumidityChangeHandler(
+            ffi::PhidgetPressureSensor_setOnPressureChangeHandler(
                 self.chan,
-                Some(Self::on_humidity_change),
+                Some(Self::on_pressure_change),
                 ctx,
             )
         })
@@ -184,7 +186,7 @@ impl HumiditySensor {
     /// Sets a handler to receive attach callbacks
     pub fn set_on_attach_handler<F>(&mut self, cb: F) -> Result<()>
     where
-        F: Fn(&mut HumiditySensor) + Send + 'static,
+        F: Fn(&mut PressureSensor) + Send + 'static,
     {
         // 1st box is fat ptr, 2nd is regular pointer.
         let cb: Box<Box<AttachCallback>> = Box::new(Box::new(cb));
@@ -200,7 +202,7 @@ impl HumiditySensor {
     /// Sets a handler to receive detach callbacks
     pub fn set_on_detach_handler<F>(&mut self, cb: F) -> Result<()>
     where
-        F: Fn(&mut HumiditySensor) + Send + 'static,
+        F: Fn(&mut PressureSensor) + Send + 'static,
     {
         // 1st box is fat ptr, 2nd is regular pointer.
         let cb: Box<Box<DetachCallback>> = Box::new(Box::new(cb));
@@ -214,7 +216,7 @@ impl HumiditySensor {
     }
 }
 
-impl Phidget for HumiditySensor {
+impl Phidget for PressureSensor {
     fn as_mut_handle(&mut self) -> PhidgetHandle {
         self.chan as PhidgetHandle
     }
@@ -223,16 +225,16 @@ impl Phidget for HumiditySensor {
     }
 }
 
-unsafe impl Send for HumiditySensor {}
+unsafe impl Send for PressureSensor {}
 
-impl Default for HumiditySensor {
+impl Default for PressureSensor {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl From<HumiditySensorHandle> for HumiditySensor {
-    fn from(chan: HumiditySensorHandle) -> Self {
+impl From<PressureSensorHandle> for PressureSensor {
+    fn from(chan: PressureSensorHandle) -> Self {
         Self {
             chan,
             cb: None,
@@ -242,14 +244,14 @@ impl From<HumiditySensorHandle> for HumiditySensor {
     }
 }
 
-impl Drop for HumiditySensor {
+impl Drop for PressureSensor {
     fn drop(&mut self) {
         if let Ok(true) = self.is_open() {
             let _ = self.close();
         }
         unsafe {
-            ffi::PhidgetHumiditySensor_delete(&mut self.chan);
-            crate::drop_cb::<HumidityChangeCallback>(self.cb.take());
+            ffi::PhidgetPressureSensor_delete(&mut self.chan);
+            crate::drop_cb::<PressureChangeCallback>(self.cb.take());
             crate::drop_cb::<AttachCallback>(self.attach_cb.take());
             crate::drop_cb::<DetachCallback>(self.detach_cb.take());
         }

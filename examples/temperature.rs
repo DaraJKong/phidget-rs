@@ -14,11 +14,11 @@
 //!
 
 use clap::{arg, value_parser, ArgAction};
-use phidget::{devices::TemperatureSensor, Phidget};
+use phidget::{devices::TemperatureSensor, devices::ThermocoupleType, Phidget};
 use std::{thread, time::Duration};
 
 // The open/connect timeout
-const TIMEOUT: Duration = phidget::TIMEOUT_DEFAULT;
+const TIMEOUT: Duration = Duration::from_secs(5);
 
 // The package version is used as the app version
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -54,6 +54,11 @@ fn main() -> anyhow::Result<()> {
                 .value_parser(value_parser!(i32)),
         )
         .arg(
+            arg!(-t --type [tcType] "Set the thermocouple type [J|K|E|T]")
+                .value_parser(["J", "K", "E", "T"])
+                .value_parser(value_parser!(char)),
+        )
+        .arg(
             arg!(-i --interval [interval] "Sets the interval (period) for data collection, in ms")
                 .default_value("1000")
                 .value_parser(value_parser!(u32)),
@@ -76,29 +81,63 @@ fn main() -> anyhow::Result<()> {
         sensor.set_channel(chan)?;
     }
 
-    sensor.open_wait(TIMEOUT)?;
-
-    let port = sensor.hub_port()?;
-    println!("Opened on hub port: {}", port);
-
-    // Set the acquisition interval (sampling period)
-    if let Some(&interval) = opts.get_one::<u32>("interval") {
-        let dur = Duration::from_millis(interval as u64);
-        if let Err(err) = sensor.set_data_interval(dur) {
-            eprintln!("Error setting interval: {}", err);
+    // Determine which thermocouple type to use based on command line argument
+    let tc_type = opts.get_one::<char>("type").map(|c| {
+        use ThermocoupleType::*;
+        match c {
+            'J' => TypeJ,
+            'K' => TypeK,
+            'E' => TypeE,
+            'T' => TypeT,
+            _ => {
+                eprintln!("Error: Unsupported thermocouple type '{c}'");
+                std::process::exit(1);
+            }
         }
+    });
+
+    if let Some(ref t) = tc_type {
+        println!("Using thermocouple type: {:?}", t);
     }
 
-    println!("\nReading temperature. Hit ^C to exit.");
+    let interval = opts
+        .get_one::<u32>("interval")
+        .map(|&i| Duration::from_millis(i as u64))
+        .unwrap();
 
-    // Read a single value...
-    let t = sensor.temperature()?;
-    println!("  {:.1}°C,  {:.1}°F", t, c_to_f(t));
+    // When the sensor is attached, set some params
+    sensor.set_on_attach_handler(move |sensor| {
+        println!("\nTemperature sensor attached!");
+
+        // Set the thermocouple type
+        if let Some(tc_type) = tc_type {
+            match sensor.set_thermocouple_type(tc_type) {
+                Ok(_) => println!("Set thermocouple type to {:?}", tc_type),
+                Err(err) => eprintln!("Failed to set thermocouple type: {}", err),
+            }
+        }
+
+        // Set the acquisition interval (sampling period)
+        if let Err(err) = sensor.set_data_interval(interval) {
+            eprintln!("Error setting interval: {}", err);
+        }
+    })?;
+
+    sensor.set_on_detach_handler(|_| {
+        println!("Temperature sensor detached!");
+    })?;
 
     // ...and/or set a callback handler
     sensor.set_on_temperature_change_handler(|_, t: f64| {
         println!("  {:.1}°C,  {:.1}°F", t, c_to_f(t));
     })?;
+
+    // Open the device
+    sensor.open_wait(TIMEOUT)?;
+
+    let port = sensor.hub_port()?;
+    println!("Opened on hub port: {}", port);
+    println!("\nReading temperature. Hit ^C to exit.");
 
     // ^C handler wakes up the main thread to exit
     ctrlc::set_handler({
